@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: sbatch slurm/cpu.sbatch make data baselines test
+# Usage: sbatch slurm/cpu.sbatch <command>
 #SBATCH --job-name=plb-cpu
 #SBATCH --partition=triton
 #SBATCH --cpus-per-task=8

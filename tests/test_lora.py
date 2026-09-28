@@ -1,4 +1,4 @@
-"""LoRA on the scGPT architecture, with random weights so no download is needed."""
+"""LoRA tests on the scGPT architecture with random weights."""
 
 import pytest
 import torch
@@ -10,7 +10,7 @@ N_GENES, VOCAB = 50, 1000
 
 @pytest.fixture
 def scgpt_net():
-    """Same encoder shape as whole-human scGPT (12 layers, d=512, 8 heads) with a small vocabulary."""
+    """Whole-human scGPT encoder shape with a small vocabulary."""
     from helical.models.scgpt.model_dir.model import TransformerModel
 
     torch.manual_seed(0)
@@ -39,19 +39,18 @@ def test_only_lora_params_trainable(scgpt_net):
     pm = attach_lora(scgpt_net, r=8, alpha=16)
     trainable = [n for n, p in pm.named_parameters() if p.requires_grad]
     assert trainable and all("lora_" in n for n in trainable)
-    # 12 layers x [in_proj: 8*(512+1536)  +  out_proj: 8*(512+512)]
     assert sum(p.numel() for p in pm.parameters() if p.requires_grad) == 12 * (8 * 2048 + 8 * 1024)
 
 
 def test_lora_is_identity_at_init(scgpt_net, batch):
-    """B starts at zero, so before training the output must match the base model."""
+    """Zero-initialised B leaves the output unchanged."""
     base = encode_eval(scgpt_net, batch)
     pm = attach_lora(scgpt_net)
     assert torch.allclose(encode_eval(pm, batch), base, atol=1e-5)
 
 
 def test_lora_active_in_eval_mode(scgpt_net, batch):
-    """PyTorch's attention fast path skips LoRA in eval mode unless it is disabled."""
+    """LoRA must change eval-mode output."""
     base = encode_eval(scgpt_net, batch)
     pm = attach_lora(scgpt_net)
     for n, p in pm.named_parameters():

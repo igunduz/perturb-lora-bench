@@ -30,8 +30,10 @@ next to it, and a metric that looks at what changed.
 | Adamson et al. 2016 [4] | K562, CRISPRi | single genes | debugging the pipeline |
 | Norman et al. 2019 [5] | K562, CRISPRa | single genes and pairs | main results |
 
-Both are loaded through the GEARS data loaders [6], using its "simulation"
-split, so the numbers can be compared with GEARS and scGPT.
+GEARS [6] is a graph neural network that predicts perturbation effects using a
+gene–gene graph built from Gene Ontology. I use only its preprocessed data and
+its "simulation" split, not the model, so the numbers can be compared with
+GEARS and scGPT.
 
 ## Model
 

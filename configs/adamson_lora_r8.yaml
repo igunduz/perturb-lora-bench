@@ -1,33 +1,32 @@
-# Adamson (K562, CRISPRi, single genes) with LoRA r=8. Used to debug the pipeline.
-# The whole file is logged to W&B. For a new run, copy the file rather than using CLI flags.
+# Adamson, LoRA r=8
 seed: 42
 
 data:
   name: adamson
-  split: simulation      # test perturbations never seen in training
+  split: simulation
   split_seed: 1
-  n_hvg: 5000            # as preprocessed by GEARS
+  n_hvg: 5000
 
 model:
-  backbone: scgpt        # whole-human checkpoint, loaded via helical
-  max_genes: 1536        # genes per cell passed to the encoder
+  backbone: scgpt
+  max_genes: 1536
 
 lora:
   r: 8
-  alpha: 16              # update is scaled by alpha/r = 2
+  alpha: 16
   dropout: 0.05
-  target_modules: [self_attn]   # scGPT has no q_proj/v_proj; see README
+  target_modules: [self_attn]
 
 train:
   epochs: 15
   batch_size: 32
   lr: 1.0e-4
   weight_decay: 0.0
-  early_stopping_on: val_pearson_delta_de20   # validation split only
+  early_stopping_on: val_pearson_delta_de20
 
 eval:
   top_de: 20
 
 wandb:
   project: perturb-lora-bench
-  mode: online           # use "offline" on nodes without internet, then run `wandb sync`
+  mode: online

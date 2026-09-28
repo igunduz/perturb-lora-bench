@@ -1,17 +1,4 @@
-"""Loading Adamson and Norman through GEARS (Roohani et al., Nat Biotechnol 2024).
-
-GEARS ships preprocessed versions of both datasets on Harvard Dataverse: log-
-normalised expression for 5,000 highly variable genes plus the perturbed genes,
-with precomputed differential expression per perturbation. It also defines the
-"simulation" split used by GEARS and scGPT. We use its download, gene filter
-and split code unchanged so our numbers are comparable with theirs.
-
-The one thing we skip is GEARS' per-cell graph construction, which only the
-GEARS model needs and which takes a long time and several GB for Norman.
-
-Conditions are named like GEARS does: "ctrl", "FOXA1+ctrl" for a single gene,
-"FOXA1+FOXL2" for a pair.
-"""
+"""Adamson and Norman data and splits from GEARS (GO-graph GNN, Roohani et al. 2024); we use only its data and split code."""
 
 from __future__ import annotations
 
@@ -27,7 +14,7 @@ DE_KEY = "top_non_dropout_de_20"
 
 
 def _pertdata_class():
-    """GEARS PertData without the per-cell graph step. Imported lazily (GEARS pulls in torch_geometric)."""
+    """GEARS PertData without per-cell graph construction."""
     from gears import PertData
 
     class LightPertData(PertData):
@@ -38,12 +25,7 @@ def _pertdata_class():
 
 
 def load_pertdata(name: str, data_dir: Path = DATA_DIR, split_seed: int = 1):
-    """GEARS PertData with the simulation split. Downloads the data on first use.
-
-    The split puts 25% of perturbation genes in the test set; for Norman, test
-    pairs are grouped by how many of their two genes were seen alone in
-    training (`pert_data.subgroup["test_subgroup"]`).
-    """
+    """Download (first call), GO-filter and split a dataset with GEARS' simulation split."""
     if name not in DATASETS:
         raise ValueError(f"unknown dataset {name!r}; expected one of {DATASETS}")
     data_dir = Path(data_dir)
@@ -59,7 +41,7 @@ def _mean_rows(X) -> np.ndarray:
 
 
 def condition_mean(adata, condition: str) -> np.ndarray:
-    """Mean expression over all cells with this condition (use "ctrl" for controls)."""
+    """Mean expression of cells with this condition."""
     mask = (adata.obs["condition"] == condition).to_numpy()
     if not mask.any():
         raise KeyError(f"no cells with condition {condition!r}")
@@ -67,7 +49,7 @@ def condition_mean(adata, condition: str) -> np.ndarray:
 
 
 def de_indices(adata, condition: str) -> np.ndarray:
-    """Column indices of the top-20 DE genes GEARS precomputed for this condition."""
+    """Column indices of GEARS' top-20 DE genes for this condition."""
     cond_names = adata.obs.loc[adata.obs["condition"] == condition, "condition_name"].unique()
     if len(cond_names) != 1:
         raise KeyError(f"expected one condition_name for {condition!r}, got {list(cond_names)}")
@@ -79,19 +61,13 @@ def de_indices(adata, condition: str) -> np.ndarray:
 
 
 def perturbed_genes(condition: str) -> list[str]:
-    """'FOXA1+ctrl' -> ['FOXA1'], 'FOXA1+FOXL2' -> ['FOXA1', 'FOXL2'], 'ctrl' -> []."""
+    """'A+ctrl' -> ['A'], 'A+B' -> ['A', 'B'], 'ctrl' -> []."""
     return [g for g in condition.split("+") if g != "ctrl"]
 
 
 @dataclass
 class PerturbationSummary:
-    """Everything the baselines and the evaluation need, as mean profiles.
-
-    ctrl:   (n_genes,) mean of control cells
-    means:  condition -> (n_genes,) mean of that condition's cells
-    de_idx: condition -> indices of its top-20 DE genes
-    split:  "train" / "val" / "test" -> list of conditions (ctrl excluded)
-    """
+    """Per-condition mean profiles, DE indices and split."""
 
     genes: np.ndarray
     ctrl: np.ndarray

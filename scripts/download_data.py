@@ -1,9 +1,4 @@
-"""Download Adamson and Norman via GEARS, build the splits, and print a summary.
-
-Run on a node with internet access (the login node is fine; this is I/O, not compute):
-    python scripts/download_data.py
-    python scripts/download_data.py --datasets adamson
-"""
+"""Download GEARS datasets, build splits and print a summary."""
 
 import argparse
 from collections import Counter

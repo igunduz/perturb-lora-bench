@@ -1,9 +1,9 @@
-# Top-level dependencies (human-edited). Exact versions of everything are in requirements.lock.
-helical==2.2.0          # pins torch==2.7.0, transformers>=4.53, numpy<2.3, pandas==2.2.2
-torch==2.7.0            # PyPI Linux wheel bundles CUDA 12.6 runtime
-peft==0.21.0            # LoRA; supports nn.MultiheadAttention (what scGPT uses)
-cell-gears==0.1.2       # GEARS PertData: standard Norman/Adamson splits
-torch-geometric==2.8.0.post1   # imported by GEARS PertData
+# Top-level dependencies; run `make lock` after editing.
+helical==2.2.0
+torch==2.7.0
+peft==0.21.0
+cell-gears==0.1.2
+torch-geometric==2.8.0.post1
 scanpy==1.11.5
 wandb==0.30.0
 matplotlib

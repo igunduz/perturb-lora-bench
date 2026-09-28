@@ -1,8 +1,4 @@
-"""Data loading and split checks.
-
-The first group uses a small fake AnnData laid out like GEARS' files, so it runs
-anywhere. The second group needs the real data (`make data`) and is skipped otherwise.
-"""
+"""Data loading and split tests; real-data tests skip without data/."""
 
 from pathlib import Path
 
@@ -19,7 +15,7 @@ GENES = [f"G{i}" for i in range(30)]
 
 @pytest.fixture
 def fake_adata():
-    """3 conditions x 4 cells; each condition's cells have a known constant profile."""
+    """Fake GEARS-style AnnData: 3 conditions x 4 cells."""
     conds = ["ctrl"] * 4 + ["G1+ctrl"] * 4 + ["G1+G2"] * 4
     X = np.zeros((12, 30))
     X[0:4] = 1.0
@@ -64,8 +60,7 @@ def test_summarise(fake_adata):
 
 
 def test_gears_simulation_split_holds_out_genes():
-    """Run GEARS' own splitter on fake conditions: a test single-gene perturbation's
-    gene must not appear in any training condition, single or pair."""
+    """Test genes of single perturbations never appear in training."""
     from gears.data_utils import DataSplitter
 
     rng = np.random.default_rng(0)
@@ -84,8 +79,6 @@ def test_gears_simulation_split_holds_out_genes():
     assert test_single_genes and not (train_genes & test_single_genes)
     assert not (set(by_split["train"]) & set(by_split["test"]))
 
-
-# ---------- real data ----------
 
 DATA = Path("data")
 needs_adamson = pytest.mark.skipif(

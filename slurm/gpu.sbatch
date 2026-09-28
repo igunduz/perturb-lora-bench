@@ -1,6 +1,5 @@
 #!/bin/bash
-# Usage: sbatch slurm/gpu.sbatch make train
-#        sbatch slurm/gpu.sbatch python scripts/train.py --config configs/adamson_lora_r8.yaml
+# Usage: sbatch slurm/gpu.sbatch <command>
 #SBATCH --job-name=plb-gpu
 #SBATCH --partition=triton-gpu
 #SBATCH --gres=gpu:1

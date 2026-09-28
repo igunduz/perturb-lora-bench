@@ -1,4 +1,4 @@
-"""Reproducibility helpers."""
+"""Seeding and config loading."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import yaml
 
 
 def seed_everything(seed: int, deterministic: bool = True) -> None:
-    """Fix every RNG we use. `deterministic=True` trades some GPU speed for bitwise-repeatable runs."""
+    """Seed all RNGs; optionally force deterministic kernels."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -26,6 +26,6 @@ def seed_everything(seed: int, deterministic: bool = True) -> None:
 
 
 def load_config(path: str | Path) -> dict:
-    """Load a YAML config. Configs live in configs/ and are logged verbatim to W&B."""
+    """Load a YAML config."""
     with open(path) as f:
         return yaml.safe_load(f)
