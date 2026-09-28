@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -107,6 +108,7 @@ def train(model: PerturbationScGPT, data: CellData, gmap: GeneMap, cfg: dict, de
     for epoch in range(tc["epochs"]):
         model.train()
         losses = []
+        t0 = time.perf_counter()
         for _ in range(tc["steps_per_epoch"]):
             perts = list(rng.choice(train_perts, tc["batch_size"]))
             cells = rng.integers(len(data.ctrl_cells), size=len(perts))
@@ -120,8 +122,11 @@ def train(model: PerturbationScGPT, data: CellData, gmap: GeneMap, cfg: dict, de
             torch.nn.utils.clip_grad_norm_(params, tc["grad_clip"])
             opt.step()
             losses.append(loss.item())
+        sec_per_step = (time.perf_counter() - t0) / tc["steps_per_epoch"]
+        t0 = time.perf_counter()
         score = val_score(model, data, gmap, cfg, device)
-        log({"epoch": epoch, "train_loss": float(np.mean(losses)), "val_pearson_delta_de20": score})
+        log({"epoch": epoch, "train_loss": float(np.mean(losses)), "val_pearson_delta_de20": score,
+             "sec_per_step": sec_per_step, "val_sec": time.perf_counter() - t0})
         if score > best:
             best, best_state, bad = score, trainable_state(model), 0
         else:

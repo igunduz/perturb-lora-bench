@@ -65,13 +65,14 @@ untrained model predicts "no change".
 
 Training details:
 
-- Input: one control cell, up to 1,536 genes per pass (the perturbed genes plus
-  a random subset of the rest). At test time the genes are covered in chunks.
+- Input: one control cell, 512 genes per pass (the perturbed genes plus a
+  random subset of the rest). At test time the genes are covered in chunks.
+  512 rather than scGPT's usual ~1,200 because training runs on CPU.
 - Target: the observed mean change for that perturbation (perturbed-cell mean
   minus control mean), with MSE loss. Predicting a mean rather than a single
   cell removes cell-to-cell noise from the target.
 - Prediction for a test perturbation: the control mean plus the predicted
-  change averaged over 64 control cells.
+  change averaged over 16 control cells.
 - Genes missing from scGPT's vocabulary are predicted as unchanged; the
   training log reports how many there are.
 
@@ -139,10 +140,10 @@ make test    # unit tests, no data or GPU needed
 make all     # download data, run baselines, train, evaluate, plot
 ```
 
-On a SLURM cluster, one GPU job per config:
+On a SLURM cluster, one job per config (use slurm/gpu.sbatch if a GPU is available):
 
 ```bash
-for c in configs/adamson_*.yaml; do sbatch slurm/gpu.sbatch python scripts/train.py --config $c; done
+for c in configs/adamson_*.yaml; do sbatch slurm/cpu.sbatch python scripts/train.py --config $c; done
 ```
 
 `requirements.lock` pins every package for Linux, Python 3.11, and torch 2.7.0

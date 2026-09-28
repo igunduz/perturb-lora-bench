@@ -6,7 +6,7 @@ data:
 model:
   backbone: scgpt
   pretrained: true
-  max_genes: 1536
+  max_genes: 512
 lora:
   r: 16
   alpha: 32
@@ -15,15 +15,15 @@ lora:
   - self_attn
 train:
   epochs: 20
-  steps_per_epoch: 200
-  batch_size: 16
+  steps_per_epoch: 100
+  batch_size: 8
   lr: 0.0002
   weight_decay: 0.0
   grad_clip: 1.0
   patience: 5
 eval:
-  n_cells: 64
-  n_cells_val: 16
+  n_cells: 16
+  n_cells_val: 4
 wandb:
   project: perturb-lora-bench
   mode: offline
