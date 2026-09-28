@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plb"
+version = "0.1.0"
+description = "LoRA fine-tuning of scGPT for single-cell perturbation response prediction, with honest baselines."
+requires-python = ">=3.11,<3.13"
+authors = [{ name = "Irem B. Gunduz" }]
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "data: needs downloaded datasets under data/ (skipped otherwise)",
+    "slow: builds a full-size scGPT network (~1 min on CPU)",
+]
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]

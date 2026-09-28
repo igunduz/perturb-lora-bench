@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- project ---
+data/
+logs/
+wandb/
+checkpoints/
+*.h5ad
+*.pt
+*.ckpt
+
+# macOS / file-sync junk
+.DS_Store
+._*
+.fuse_hidden*
