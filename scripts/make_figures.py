@@ -1,70 +1,87 @@
-"""README figures: delta correlation by model, and predicted vs. true delta for example perturbations."""
+"""README figures: mean delta correlation per model, and predicted vs. true delta for example perturbations."""
 
 import argparse
 from pathlib import Path
 
 import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-matplotlib.use("Agg")
-INK, MUTED, MARK, GRID = "#1f2328", "#6e7781", "#2f6fb0", "#d8dee4"
-plt.rcParams.update({"font.size": 10, "axes.edgecolor": MUTED, "axes.labelcolor": INK,
-                     "xtick.color": MUTED, "ytick.color": MUTED, "axes.spines.top": False,
-                     "axes.spines.right": False})
+COLOR = "#4c72b0"
 
 
-def delta_by_model(dataset: str, results: Path, out: Path) -> None:
-    """Per-perturbation top-20 DE delta Pearson for every model, ordered by mean."""
+def bar_chart(dataset: str, results: Path, out: Path) -> None:
+    """Mean top-20 DE delta Pearson per model, with standard error."""
     df = pd.concat([pd.read_csv(f) for f in sorted((results / dataset).glob("*.csv"))])
     df = df[df.model != "no_change"]
-    order = df.groupby("model").pearson_delta_de20.mean().sort_values().index
-    fig, ax = plt.subplots(figsize=(6.5, 0.45 * len(order) + 1.2))
-    rng = np.random.default_rng(0)
-    for i, m in enumerate(order):
-        v = df.loc[df.model == m, "pearson_delta_de20"].dropna()
-        ax.scatter(v, i + rng.uniform(-0.15, 0.15, len(v)), s=10, color=MARK, alpha=0.35, linewidths=0)
-        ax.plot([v.mean()] * 2, [i - 0.3, i + 0.3], color=INK, lw=2)
-    ax.set_yticks(range(len(order)), [m.removeprefix(f"{dataset}_") for m in order])
-    ax.axvline(0, color=GRID, lw=1, zorder=0)
+    g = df.groupby("model").pearson_delta_de20
+    stats = pd.DataFrame({"mean": g.mean(), "sem": g.sem()}).sort_values("mean")
+    labels = [m.removeprefix(f"{dataset}_") for m in stats.index]
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.barh(labels, stats["mean"], xerr=stats["sem"], color=COLOR)
     ax.set_xlabel("Pearson Δ, top-20 DE genes")
-    ax.set_title(f"{dataset}: dots are test perturbations, bars are means", fontsize=9, color=MUTED, loc="left")
+    ax.set_title(dataset)
+    ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out / f"delta_corr_{dataset}.png", dpi=200)
+    fig.savefig(out / f"delta_corr_{dataset}.png", dpi=150)
     plt.close(fig)
 
 
-def examples(dataset: str, results: Path, out: Path, models: list[str], n: int = 3) -> None:
+def gain_over_baseline(dataset: str, results: Path, out: Path, baseline: str = "train_mean") -> None:
+    """Per-model gain in top-20 DE delta Pearson over the baseline, paired by perturbation."""
+    base = pd.read_csv(results / dataset / f"{baseline}.csv").set_index("perturbation").pearson_delta_de20
+    rows = []
+    for f in sorted((results / dataset).glob(f"{dataset}_*.csv")):
+        d = pd.read_csv(f).set_index("perturbation").pearson_delta_de20 - base
+        rows.append((f.stem.removeprefix(f"{dataset}_"), d.mean(), d.std() / np.sqrt(d.notna().sum())))
+    rows.sort(key=lambda r: r[1])
+
+    fig, ax = plt.subplots(figsize=(7, 0.55 * len(rows) + 1.2))
+    for y, (name, m, se) in enumerate(rows):
+        color = COLOR if name.startswith("lora") else "#9aa0a6"
+        ax.errorbar(m, y, xerr=se, fmt="o", color=color, ms=7, capsize=3, lw=1.5)
+        ax.text(m + se + 0.005, y, f"{m:+.3f}", va="center", fontsize=8, color="#444")
+    ax.axvline(0, color="#bbbbbb", lw=1)
+    ax.set_yticks(range(len(rows)), [r[0] for r in rows])
+    ax.set_xlabel(f"Gain in Pearson Δ, top-20 DE genes, over {baseline}\n(mean ± s.e.m., paired by perturbation)")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.set_title(dataset, fontsize=10, loc="left")
+    fig.tight_layout()
+    fig.savefig(out / f"gain_over_baseline_{dataset}.png", dpi=150)
+    plt.close(fig)
+
+
+def examples(dataset: str, results: Path, out: Path, model: str, n: int = 3) -> None:
     """Predicted vs. true Δ on top-20 DE genes for the n test perturbations with the largest effects."""
     from plb.data import load_pertdata, summarise
 
     pd_ = load_pertdata(dataset)
     s = summarise(pd_.adata, pd_.set2conditions, pd_.subgroup)
-    models = [m for m in models if (results / dataset / f"{m}_pred.npz").exists()]
-    preds = {m: np.load(results / dataset / f"{m}_pred.npz") for m in models}
+    pred = np.load(results / dataset / f"{model}_pred.npz")
     size = {p: np.abs(s.means[p] - s.ctrl)[s.de_idx[p]].mean() for p in s.split["test"]}
     top = sorted(size, key=size.get, reverse=True)[:n]
-    fig, axes = plt.subplots(n, len(models), figsize=(2.4 * len(models), 2.3 * n), squeeze=False)
-    for r, p in enumerate(top):
+
+    fig, axes = plt.subplots(1, n, figsize=(3 * n, 3))
+    for ax, p in zip(axes, top):
         idx = s.de_idx[p]
         true = (s.means[p] - s.ctrl)[idx]
-        lim = np.abs(true).max() * 1.15
-        for c, m in enumerate(models):
-            ax = axes[r, c]
-            pred = (preds[m][p] - s.ctrl)[idx]
-            ax.plot([-lim, lim], [-lim, lim], color=GRID, lw=1, zorder=0)
-            ax.scatter(true, pred, s=14, color=MARK)
-            ax.set_xlim(-lim, lim)
-            ax.set_ylim(-lim, lim)
-            if r == 0:
-                ax.set_title(m.removeprefix(f"{dataset}_"), fontsize=9)
-            if c == 0:
-                ax.set_ylabel(f"{p}\npredicted Δ", fontsize=8)
-            if r == n - 1:
-                ax.set_xlabel("true Δ", fontsize=8)
+        guess = (pred[p] - s.ctrl)[idx]
+        lim = max(np.abs(true).max(), np.abs(guess).max()) * 1.1
+        ax.plot([-lim, lim], [-lim, lim], color="lightgray")
+        ax.scatter(true, guess, s=15, color=COLOR)
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+        ax.set_title(p)
+        ax.set_xlabel("true Δ")
+        ax.spines[["top", "right"]].set_visible(False)
+    axes[0].set_ylabel("predicted Δ")
+    fig.suptitle(f"{dataset}, {model.removeprefix(f'{dataset}_')}, top-20 DE genes")
     fig.tight_layout()
-    fig.savefig(out / f"examples_{dataset}.png", dpi=200)
+    fig.savefig(out / f"examples_{dataset}.png", dpi=150)
     plt.close(fig)
 
 
@@ -73,14 +90,15 @@ def main() -> None:
     ap.add_argument("--results", type=Path, default=Path("results"))
     ap.add_argument("--out", type=Path, default=Path("figures"))
     ap.add_argument("--datasets", nargs="+", default=["adamson", "norman"])
-    ap.add_argument("--models", nargs="+", default=["additive", "frozen", "lora_r8", "random_lora_r8"])
+    ap.add_argument("--model", default="lora_r8")
     args = ap.parse_args()
     args.out.mkdir(exist_ok=True)
     for d in args.datasets:
         if not (args.results / d).exists():
             continue
-        delta_by_model(d, args.results, args.out)
-        examples(d, args.results, args.out, [m if m in ("additive", "train_mean") else f"{d}_{m}" for m in args.models])
+        bar_chart(d, args.results, args.out)
+        gain_over_baseline(d, args.results, args.out)
+        examples(d, args.results, args.out, f"{d}_{args.model}")
 
 
 if __name__ == "__main__":

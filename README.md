@@ -4,7 +4,7 @@ Can a single-cell foundation model, lightly fine-tuned, predict how cells respon
 to a genetic perturbation it has never seen? This repo fine-tunes scGPT [1] with
 LoRA [2] on Perturb-seq data and compares it against simple baselines.
 
-Work in progress: baselines are done on Adamson; the scGPT runs are next.
+Adamson results are in (below); Norman, with gene pairs, is next.
 
 ## The problem
 
@@ -104,6 +104,8 @@ error or warning. I found this by setting the LoRA weights to random values
 and checking that eval output changed; it didn't. The fix is
 `torch.backends.mha.set_fastpath_enabled(False)`, and
 `tests/test_lora.py::test_lora_active_in_eval_mode` keeps it from coming back.
+This applies to scGPT built on PyTorch's stock attention, as in helical 2.2.0;
+helical 3.x uses its own attention module without the fast path.
 
 ## Evaluation
 
@@ -135,29 +137,59 @@ scored once, at the end.
 
 ## Results
 
-### Adamson, baselines (21 test perturbations, mean ± s.e.m.)
+### Adamson (21 unseen test genes, mean ± s.e.m.)
 
-| Model | Pearson Δ top-20 DE | Pearson Δ all | MSE top-20 DE | MSE all | Pearson raw |
-|---|---|---|---|---|---|
-| `no_change` | n/a | n/a | 0.399 ± 0.055 | 0.010 ± 0.001 | 0.984 ± 0.002 |
-| `train_mean` | 0.621 ± 0.135 | 0.636 ± 0.103 | 0.252 ± 0.069 | 0.006 ± 0.002 | 0.990 ± 0.003 |
+| Model | Pearson Δ top-20 DE | Pearson Δ all | MSE top-20 DE | MSE all |
+|---|---|---|---|---|
+| `lora_r4` | 0.666 ± 0.134 | 0.610 ± 0.100 | 0.230 ± 0.072 | 0.007 ± 0.002 |
+| `lora_r16` | 0.665 ± 0.137 | 0.594 ± 0.102 | 0.236 ± 0.075 | 0.007 ± 0.002 |
+| `lora_r8` | 0.662 ± 0.135 | 0.608 ± 0.099 | 0.234 ± 0.075 | 0.007 ± 0.002 |
+| `random_lora_r8` | 0.651 ± 0.134 | 0.622 ± 0.099 | 0.256 ± 0.082 | 0.008 ± 0.002 |
+| `train_mean` | 0.621 ± 0.135 | 0.636 ± 0.103 | 0.252 ± 0.069 | 0.006 ± 0.002 |
+| `frozen` | 0.534 ± 0.117 | 0.404 ± 0.067 | 0.314 ± 0.067 | 0.008 ± 0.001 |
+| `no_change` | n/a | n/a | 0.399 ± 0.055 | 0.010 ± 0.001 |
 
-`additive` gives identical numbers on Adamson: every test gene is unseen, so it
-falls back to the average training effect. Pearson Δ is undefined for
-`no_change` because its predicted delta is zero everywhere.
+`additive` equals `train_mean` on Adamson (every test gene is unseen), so it is
+left out. Pearson Δ is undefined for `no_change` because its predicted change is
+zero. Predicting no change still gets a raw-expression Pearson r of 0.984, which
+is why raw correlation isn't used to rank models.
 
-Two things stand out. First, raw correlation cannot separate the models:
-predicting no change already scores 0.984. Second, `train_mean` is strong: its
-median Pearson Δ on the top-20 DE genes is 0.88, and it has lower top-20 MSE
-than `no_change` for 18 of the 21 test perturbations. The mean is pulled down
-by three perturbations, CREB1, DDIT3 and BHLHE40, at about −0.84 each: their
-DE genes move in the opposite direction to the average training effect. All
-three are transcription factors. Adamson's screen was designed around the
-unfolded protein response, so many perturbations share one response, which a
-model has to beat before it shows anything perturbation-specific.
+![Gain over the average-effect baseline](figures/gain_over_baseline_adamson.png)
 
-scGPT results will be added here. `make evaluate` writes the tables to
-`results/summary_*.md` and `make figures` writes the plots to `figures/`.
+The standard errors in the table are large because the test genes vary a lot,
+so the useful comparison is paired, gene by gene, against `train_mean`:
+
+| Model | Gain in Pearson Δ top-20 DE (paired s.e.m.) | Genes improved |
+|---|---|---|
+| `lora_r4` | +0.045 (0.015) | 15 / 21 |
+| `lora_r8` | +0.041 (0.013) | 16 / 21 |
+| `lora_r16` | +0.044 (0.019) | 13 / 21 |
+| `random_lora_r8` | +0.030 (0.011) | 14 / 21 |
+| `frozen` | −0.087 (0.039) | 6 / 21 |
+
+What this says:
+
+1. LoRA-tuned scGPT beats the average-effect baseline, but only slightly:
+   about +0.04 in Pearson Δ on the top-20 DE genes, with lower top-20 MSE
+   (0.234 vs 0.252). Over all genes it is slightly worse (0.61 vs 0.64).
+2. Most of that gain doesn't need pretraining. The same model with random
+   weights gets +0.030. Pretrained minus random is +0.011 (paired s.e.m.
+   0.006, better on 12 of 21 genes), which 21 genes cannot distinguish from
+   zero.
+3. The LoRA rank doesn't matter: r = 4, 8 and 16 are indistinguishable.
+4. Frozen scGPT with a trained head does worse than the baseline. The
+   pretrained representation on its own is not enough; the attention layers
+   have to adapt.
+5. No model gets CREB1, DDIT3 or BHLHE40 right. All three are transcription
+   factors whose knockdown moves their DE genes opposite to the average
+   training effect, and every model, pretrained or not, scores between −0.60
+   and −0.85 on them. Predicting these needs knowledge of what the specific
+   gene does, and scGPT's pretraining on unperturbed cells doesn't supply it
+   here.
+
+Put simply: on Adamson, fine-tuning scGPT with LoRA mostly learns a refined
+version of the average response, and pretraining adds little that a randomly
+initialised network trained the same way doesn't also learn.
 
 ## Reproducing
 
@@ -183,18 +215,34 @@ logged to Weights & Biases.
 
 ## What I'd do next, and what I don't trust
 
-To be completed once the scGPT runs are in. Known so far:
+What I don't trust:
 
-- With exact symbol matching, three Adamson test perturbations (HARS, TARS,
-  CARS) were missing from scGPT's vocabulary, so the model could not tell which
-  gene was perturbed. They have since been renamed (HARS1, TARS1, CARS1), which
-  is why HGNC matching was added. Any perturbation still unmatched after that
-  is listed in the training log.
-- 21 test perturbations from one split seed is a small sample; the standard
-  errors above are wide.
+- 21 test genes from one split seed. The pretrained-vs-random gap (+0.011)
+  would need more genes or more split seeds to resolve either way.
+- Validation has only 6 genes and scores much higher than test (about 0.93 vs
+  0.66), probably because it holds none of the "opposite direction" genes.
+  Early stopping on it is noisy.
 - The scGPT runs use 512 genes per pass and 16 control cells for prediction
-  because they run on CPU. All models share these settings, but a GPU run with
-  longer inputs could score differently.
+  because they ran on CPU. All models share these settings, but longer inputs
+  on a GPU could change the numbers.
+- One training seed per configuration.
+- The environment pins helical 2.2.0. Helical 3.x replaces PyTorch's attention
+  in scGPT with its own module (helical PR #405), which removes the fast-path
+  bug above but also changes where LoRA can attach, so these configs would
+  need changes to run on 3.x.
+- Gene matching: exact symbols matched 4,399 of 5,060 genes; HGNC renames
+  recovered 520 more (4,919, 97%), including the three test genes HARS, TARS
+  and CARS that were otherwise invisible to the model.
+
+What I'd do next:
+
+- Norman et al. 2019, including gene pairs, where the additive baseline is no
+  longer the same as the mean.
+- More split seeds and training seeds, to put a real interval on the
+  pretrained-vs-random difference.
+- Add gene-level prior knowledge (GO or text embeddings, as in scGenePT [8]) to
+  the perturbed gene's token and test, with the same random-weight control,
+  whether that is what gets the transcription factors right.
 
 ## References
 
@@ -216,6 +264,9 @@ To be completed once the scGPT runs are in. Known so far:
 7. Harnessing the power of single-cell large language models with parameter
    efficient fine-tuning using scPEFT. *bioRxiv* (2025).
    doi:10.1101/2025.04.21.649754
+8. Istrate A-M, Li D, Karaletsos T. scGenePT: Is language all you need for
+   modeling single-cell perturbations? *bioRxiv* (2024).
+   doi:10.1101/2024.10.23.619972
 
 ## License
 
