@@ -1,7 +1,7 @@
-# adamson: LoRA r=8
+# norman: LoRA r=8
 seed: 42
 data:
-  name: adamson
+  name: norman
   split_seed: 1
 model:
   backbone: scgpt

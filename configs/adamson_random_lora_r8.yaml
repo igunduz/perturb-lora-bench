@@ -1,11 +1,11 @@
-# adamson: LoRA r=8
+# adamson: LoRA r=8 on randomly initialised scGPT (no-pretraining control)
 seed: 42
 data:
   name: adamson
   split_seed: 1
 model:
   backbone: scgpt
-  pretrained: true
+  pretrained: false
   max_genes: 1536
 lora:
   r: 8

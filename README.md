@@ -4,8 +4,8 @@ Can a single-cell foundation model, lightly fine-tuned, predict how cells respon
 to a genetic perturbation it has never seen? This repo fine-tunes scGPT [1] with
 LoRA [2] on Perturb-seq data and compares it against simple baselines.
 
-Work in progress. The environment, LoRA setup and metrics are done and tested.
-Data loading, baselines and training come next.
+Work in progress: the full pipeline is implemented and tested on synthetic data;
+runs on the real data are pending.
 
 ## The problem
 
@@ -22,6 +22,17 @@ about the perturbation. Ahlmann-Eltze et al. [3] showed that published deep
 learning models, including scGPT, often do no better than simple additive or
 mean baselines on this task. Any claim of improvement needs those baselines
 next to it, and a metric that looks at what changed.
+
+scPEFT [7] applied LoRA and other adapters to scGPT on the same datasets and
+reported results comparable to full fine-tuning and GEARS, but did not compare
+against these simple baselines. That leaves an open question, which this repo
+tests:
+
+> LoRA leaves the pretrained weights intact. If scGPT's pretraining carries
+> information that helps predict unseen perturbations, LoRA fine-tuning should
+> beat the additive baseline on the top-20 DE genes, and should beat the same
+> setup on a randomly initialised scGPT. If it does neither, pretraining is not
+> contributing to this task.
 
 ## Data
 
@@ -48,8 +59,21 @@ For a frozen matrix W it learns two thin matrices A and B and computes
 zero, so training begins from exactly the pretrained model.
 
 On top of the frozen encoder with LoRA sit two new pieces trained from scratch:
-an embedding that marks which gene was perturbed, and a decoder that outputs
-expression for each gene.
+an embedding added to the perturbed gene's token, and a small MLP that predicts
+each gene's change from control. The MLP's output layer starts at zero, so an
+untrained model predicts "no change".
+
+Training details:
+
+- Input: one control cell, up to 1,536 genes per pass (the perturbed genes plus
+  a random subset of the rest). At test time the genes are covered in chunks.
+- Target: the observed mean change for that perturbation (perturbed-cell mean
+  minus control mean), with MSE loss. Predicting a mean rather than a single
+  cell removes cell-to-cell noise from the target.
+- Prediction for a test perturbation: the control mean plus the predicted
+  change averaged over 64 control cells.
+- Genes missing from scGPT's vocabulary are predicted as unchanged; the
+  training log reports how many there are.
 
 ### Where the adapters go
 
@@ -81,30 +105,30 @@ control against true change from control, over all genes and over the 20 most
 differentially expressed genes. I also report MSE on the same two gene sets.
 Raw-expression correlation is included only to show how misleading it is.
 
-Baselines:
+Models compared (one config per row in `configs/`):
 
-1. No change: predict the control profile.
-2. Training mean: add the average effect of all training perturbations. For
-   Norman pairs, the additive baseline adds the two single-gene effects.
-3. scGPT without fine-tuning: frozen embeddings with a linear head.
-4. scGPT with LoRA.
+| Name | What it is |
+|---|---|
+| `no_change` | the control profile |
+| `train_mean` | control plus the average effect of all training perturbations |
+| `additive` | control plus the single-gene effects seen in training (average effect for unseen genes) |
+| `frozen` | pretrained scGPT, frozen; only the perturbation embedding and MLP train |
+| `lora_r4`, `lora_r8`, `lora_r16` | pretrained scGPT with LoRA (alpha = 2r) |
+| `random_lora_r8` | same as `lora_r8`, but scGPT's weights are randomly initialised |
+
+The last row is the key control: if it matches `lora_r8`, pretraining adds
+nothing. The rank sweep shows whether gains come from the pretrained weights
+or just from more trainable parameters.
 
 Hyperparameters and early stopping use the validation split. The test split is
 scored once, at the end.
 
 ## Results
 
-Not yet run.
-
-| Model | Pearson Δ, all genes | Pearson Δ, top-20 DE | MSE, all genes | MSE, top-20 DE |
-|---|---|---|---|---|
-| No change | n/a | n/a | | |
-| Training mean / additive | | | | |
-| scGPT, frozen + linear | | | | |
-| scGPT + LoRA, r = 8 | | | | |
-
-Pearson Δ is undefined for "no change" because its predicted delta is zero
-everywhere.
+Not yet run. `make evaluate` writes the tables to `results/summary_*.md`
+(mean ± standard error over test perturbations), and `make figures` writes the
+plots to `figures/`. Pearson Δ is undefined for "no change" because its
+predicted delta is zero everywhere.
 
 ## Reproducing
 
@@ -113,6 +137,12 @@ conda env create -f environment.yml -p /path/to/envs/plb
 conda activate /path/to/envs/plb
 make test    # unit tests, no data or GPU needed
 make all     # download data, run baselines, train, evaluate, plot
+```
+
+On a SLURM cluster, one GPU job per config:
+
+```bash
+for c in configs/adamson_*.yaml; do sbatch slurm/gpu.sbatch python scripts/train.py --config $c; done
 ```
 
 `requirements.lock` pins every package for Linux, Python 3.11, and torch 2.7.0
@@ -140,6 +170,9 @@ To be written once there are results.
    786–793 (2019).
 6. Roohani Y, Huang K, Leskovec J. Predicting transcriptional outcomes of novel
    multigene perturbations with GEARS. *Nature Biotechnology* 42, 927–935 (2024).
+7. Harnessing the power of single-cell large language models with parameter
+   efficient fine-tuning using scPEFT. *bioRxiv* (2025).
+   doi:10.1101/2025.04.21.649754
 
 ## License
 

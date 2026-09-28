@@ -1,15 +1,15 @@
-# adamson: LoRA r=8
+# norman: LoRA r=16
 seed: 42
 data:
-  name: adamson
+  name: norman
   split_seed: 1
 model:
   backbone: scgpt
   pretrained: true
   max_genes: 1536
 lora:
-  r: 8
-  alpha: 16
+  r: 16
+  alpha: 32
   dropout: 0.05
   target_modules:
   - self_attn
