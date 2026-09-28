@@ -75,6 +75,7 @@ class PerturbationSummary:
     de_idx: dict[str, np.ndarray]
     split: dict[str, list[str]]
     test_subgroup: dict[str, list[str]] | None = None
+    gene_ids: np.ndarray | None = None
 
 
 def summarise(adata, set2conditions: dict, subgroup: dict | None = None) -> PerturbationSummary:
@@ -90,4 +91,5 @@ def summarise(adata, set2conditions: dict, subgroup: dict | None = None) -> Pert
         de_idx={c: de_indices(adata, c) for c in conds},
         split=split,
         test_subgroup=(subgroup or {}).get("test_subgroup"),
+        gene_ids=adata.var_names.to_numpy(),
     )

@@ -5,6 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 from plb.data import DATA_DIR, DATASETS, load_pertdata, perturbed_genes
+from plb.genes import download_hgnc
 
 
 def describe(name: str, pert_data) -> None:
@@ -28,6 +29,7 @@ def main() -> None:
     ap.add_argument("--data-dir", type=Path, default=DATA_DIR)
     ap.add_argument("--split-seed", type=int, default=1)
     args = ap.parse_args()
+    print(f"HGNC table: {download_hgnc()}")
     for name in args.datasets:
         describe(name, load_pertdata(name, args.data_dir, args.split_seed))
 

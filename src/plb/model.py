@@ -79,11 +79,13 @@ def build_backbone(model_cfg: dict, genes: list[str], device: str = "cpu"):
 class GeneMap:
     """Maps dataset genes to scGPT token ids."""
 
-    def __init__(self, genes: np.ndarray, vocab: dict[str, int]):
+    def __init__(self, genes: np.ndarray, vocab: dict[str, int], names: np.ndarray | None = None):
         self.genes = np.asarray(genes)
+        self.names = np.asarray(self.genes if names is None else names, dtype=object)
         self.col = {g: i for i, g in enumerate(self.genes)}
-        self.token = np.array([vocab.get(g, -1) for g in self.genes])
+        self.token = np.array([vocab.get(n, -1) if n else -1 for n in self.names])
         self.cols = np.flatnonzero(self.token >= 0)
+        self.renamed = {g: n for g, n in zip(self.genes, self.names) if n and n != g}
         self.vocab = vocab
 
     def pert_cols(self, pert: str) -> list[int]:
@@ -114,8 +116,11 @@ class PerturbationScGPT(nn.Module):
         return self.head(h).squeeze(-1)
 
 
-def build_model(cfg: dict, genes: np.ndarray, device: str = "cpu"):
+def build_model(cfg: dict, genes: np.ndarray, device: str = "cpu", gene_ids: np.ndarray | None = None,
+                hgnc=None):
     """Backbone (frozen, optionally with LoRA) wrapped in PerturbationScGPT, plus its GeneMap."""
+    from plb.genes import vocab_names
+
     net, vocab = build_backbone(cfg["model"], list(genes), device)
     disable_mha_fastpath()
     r = cfg["lora"]["r"]
@@ -125,7 +130,8 @@ def build_model(cfg: dict, genes: np.ndarray, device: str = "cpu"):
     else:
         net.requires_grad_(False)
     d_model = net.encoder.embedding.embedding_dim
-    return PerturbationScGPT(net, d_model).to(device), GeneMap(genes, vocab)
+    gmap = GeneMap(genes, vocab, vocab_names(genes, gene_ids, vocab, hgnc))
+    return PerturbationScGPT(net, d_model).to(device), gmap
 
 
 def trainable_state(model: nn.Module) -> dict[str, torch.Tensor]:

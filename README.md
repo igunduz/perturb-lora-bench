@@ -4,8 +4,7 @@ Can a single-cell foundation model, lightly fine-tuned, predict how cells respon
 to a genetic perturbation it has never seen? This repo fine-tunes scGPT [1] with
 LoRA [2] on Perturb-seq data and compares it against simple baselines.
 
-Work in progress: the full pipeline is implemented and tested on synthetic data;
-runs on the real data are pending.
+Work in progress: baselines are done on Adamson; the scGPT runs are next.
 
 ## The problem
 
@@ -46,6 +45,11 @@ gene–gene graph built from Gene Ontology. I use only its preprocessed data and
 its "simulation" split, not the model, so the numbers can be compared with
 GEARS and scGPT.
 
+Adamson after GEARS preprocessing: 5,060 genes and 81 perturbations, split
+54 train / 6 validation / 21 test (split seed 1). All 21 test perturbations are
+single genes never seen in training. GEARS drops 5 perturbations whose gene is
+not in its Gene Ontology graph (SRPR, SLMO2, TIMM23, AMIGO3, KCTD16).
+
 ## Model
 
 scGPT [1] is a transformer pretrained on over 33 million human cells, and I
@@ -73,8 +77,13 @@ Training details:
   cell removes cell-to-cell noise from the target.
 - Prediction for a test perturbation: the control mean plus the predicted
   change averaged over 16 control cells.
-- Genes missing from scGPT's vocabulary are predicted as unchanged; the
-  training log reports how many there are.
+- Gene symbols are matched to scGPT's vocabulary exactly first, then through
+  HGNC's record of renamed genes (a pinned 2026-02-06 snapshot), using the
+  dataset's Ensembl IDs where available. By exact symbol alone, 4,399 of 5,060
+  Adamson genes (87%) matched. Genes that still don't match are predicted as
+  unchanged; the training log reports the counts.
+- Trainable parameters at r = 8: 559,105 (294,912 LoRA, 264,193 in the
+  perturbation embedding and MLP).
 
 ### Where the adapters go
 
@@ -126,10 +135,29 @@ scored once, at the end.
 
 ## Results
 
-Not yet run. `make evaluate` writes the tables to `results/summary_*.md`
-(mean ± standard error over test perturbations), and `make figures` writes the
-plots to `figures/`. Pearson Δ is undefined for "no change" because its
-predicted delta is zero everywhere.
+### Adamson, baselines (21 test perturbations, mean ± s.e.m.)
+
+| Model | Pearson Δ top-20 DE | Pearson Δ all | MSE top-20 DE | MSE all | Pearson raw |
+|---|---|---|---|---|---|
+| `no_change` | n/a | n/a | 0.399 ± 0.055 | 0.010 ± 0.001 | 0.984 ± 0.002 |
+| `train_mean` | 0.621 ± 0.135 | 0.636 ± 0.103 | 0.252 ± 0.069 | 0.006 ± 0.002 | 0.990 ± 0.003 |
+
+`additive` gives identical numbers on Adamson: every test gene is unseen, so it
+falls back to the average training effect. Pearson Δ is undefined for
+`no_change` because its predicted delta is zero everywhere.
+
+Two things stand out. First, raw correlation cannot separate the models:
+predicting no change already scores 0.984. Second, `train_mean` is strong: its
+median Pearson Δ on the top-20 DE genes is 0.88, and it has lower top-20 MSE
+than `no_change` for 18 of the 21 test perturbations. The mean is pulled down
+by three perturbations, CREB1, DDIT3 and BHLHE40, at about −0.84 each: their
+DE genes move in the opposite direction to the average training effect. All
+three are transcription factors. Adamson's screen was designed around the
+unfolded protein response, so many perturbations share one response, which a
+model has to beat before it shows anything perturbation-specific.
+
+scGPT results will be added here. `make evaluate` writes the tables to
+`results/summary_*.md` and `make figures` writes the plots to `figures/`.
 
 ## Reproducing
 
@@ -146,13 +174,27 @@ On a SLURM cluster, one job per config (use slurm/gpu.sbatch if a GPU is availab
 for c in configs/adamson_*.yaml; do sbatch slurm/cpu.sbatch python scripts/train.py --config $c; done
 ```
 
+On 16 CPU cores one training step takes about 4 s, so a full Adamson run
+(20 epochs × 100 steps, plus testing) takes about 2.5 hours.
+
 `requirements.lock` pins every package for Linux, Python 3.11, and torch 2.7.0
 with CUDA 12.6. Seeds and settings live in `configs/`, and training runs are
 logged to Weights & Biases.
 
 ## What I'd do next, and what I don't trust
 
-To be written once there are results.
+To be completed once the scGPT runs are in. Known so far:
+
+- With exact symbol matching, three Adamson test perturbations (HARS, TARS,
+  CARS) were missing from scGPT's vocabulary, so the model could not tell which
+  gene was perturbed. They have since been renamed (HARS1, TARS1, CARS1), which
+  is why HGNC matching was added. Any perturbation still unmatched after that
+  is listed in the training log.
+- 21 test perturbations from one split seed is a small sample; the standard
+  errors above are wide.
+- The scGPT runs use 512 genes per pass and 16 control cells for prediction
+  because they run on CPU. All models share these settings, but a GPU run with
+  longer inputs could score differently.
 
 ## References
 

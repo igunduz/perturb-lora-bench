@@ -10,6 +10,7 @@ import torch
 
 from plb.data import load_pertdata, summarise
 from plb.evaluation import save_run, score
+from plb.genes import HGNC, HGNC_PATH
 from plb.model import build_model, trainable_state
 from plb.train import CellData, predict_means, train
 from plb.utils import load_config, seed_everything
@@ -35,12 +36,16 @@ def main() -> None:
     pd_ = load_pertdata(dataset, split_seed=cfg["data"]["split_seed"])
     summary = summarise(pd_.adata, pd_.set2conditions, pd_.subgroup)
     data = CellData.from_adata(pd_.adata, summary)
-    model, gmap = build_model(cfg, summary.genes, device)
+    hgnc = HGNC() if HGNC_PATH.exists() else None
+    if hgnc is None:
+        print(f"warning: {HGNC_PATH} missing, matching genes to scGPT by exact symbol only", flush=True)
+    model, gmap = build_model(cfg, summary.genes, device, summary.gene_ids, hgnc)
 
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     invisible = [p for p in summary.split["test"] if not gmap.pert_cols(p)]
     info = {"run": run, "device": device, "threads": torch.get_num_threads(), "trainable_params": n_train,
             "genes_in_vocab": f"{len(gmap.cols)}/{len(gmap.genes)}",
+            "genes_matched_via_hgnc": len(gmap.renamed),
             "n_perts": {k: len(v) for k, v in summary.split.items()},
             "test_perts_without_visible_gene": invisible}
     print(json.dumps(info, indent=1), flush=True)
