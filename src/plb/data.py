@@ -1,15 +1,14 @@
-"""Data loading via GEARS PertData.
+"""Loading Adamson and Norman through GEARS (Roohani et al., Nat Biotechnol 2024).
 
-Why GEARS: its Norman/Adamson files and "simulation" splits are what the
-perturbation-prediction literature (GEARS, scGPT, and benchmarks after them)
-reports on, so our numbers are comparable. Downloads come from Harvard Dataverse.
+GEARS ships preprocessed versions of both datasets, downloaded from Harvard
+Dataverse, along with the "simulation" split used by GEARS and scGPT. Using the
+same files and split keeps our numbers comparable with theirs.
 
-Split semantics ("simulation" split, seed-controlled):
-  * single-gene datasets (Adamson): test perturbations are genes never seen in training.
-  * Norman combos: test combos are stratified by how many of the two genes were
-    seen as single perturbations in training -> "combo_seen0/1/2" subgroups.
+In the simulation split, test perturbations never appear in training. For
+Norman's gene pairs, test pairs are further grouped by how many of the two
+genes were seen alone in training (combo_seen0, combo_seen1, combo_seen2).
 
-TODO(next step): implement after we inspect the downloaded AnnData together.
+To be implemented once we have looked at the downloaded AnnData.
 """
 
 from __future__ import annotations
@@ -21,10 +20,10 @@ DATASETS = ("adamson", "norman")
 
 
 def load_pertdata(name: str, data_dir: Path = DATA_DIR, split_seed: int = 1):
-    """Download (if needed) and return a GEARS PertData with the simulation split prepared."""
+    """Return a GEARS PertData with the simulation split, downloading the data on first use."""
     raise NotImplementedError
 
 
 def control_mean(pert_data) -> "np.ndarray":  # noqa: F821
-    """Mean expression over control cells (condition == 'ctrl')."""
+    """Mean expression of the control cells (condition == 'ctrl')."""
     raise NotImplementedError

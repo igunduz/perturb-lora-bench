@@ -1,4 +1,4 @@
-"""LoRA mechanics on the real scGPT architecture (random weights: no download needed)."""
+"""LoRA on the scGPT architecture, with random weights so no download is needed."""
 
 import pytest
 import torch
@@ -10,7 +10,7 @@ N_GENES, VOCAB = 50, 1000
 
 @pytest.fixture
 def scgpt_net():
-    """Same encoder shape as the pretrained whole-human scGPT (12 layers, d=512, 8 heads), tiny vocab."""
+    """Same encoder shape as whole-human scGPT (12 layers, d=512, 8 heads) with a small vocabulary."""
     from helical.models.scgpt.model_dir.model import TransformerModel
 
     torch.manual_seed(0)
@@ -44,14 +44,14 @@ def test_only_lora_params_trainable(scgpt_net):
 
 
 def test_lora_is_identity_at_init(scgpt_net, batch):
-    """B is zero-initialised, so the wrapped model must equal the pretrained one before training."""
+    """B starts at zero, so before training the output must match the base model."""
     base = encode_eval(scgpt_net, batch)
     pm = attach_lora(scgpt_net)
     assert torch.allclose(encode_eval(pm, batch), base, atol=1e-5)
 
 
 def test_lora_active_in_eval_mode(scgpt_net, batch):
-    """Regression test for the PyTorch MHA fast path, which silently skips LoRA under eval + no_grad."""
+    """PyTorch's attention fast path skips LoRA in eval mode unless it is disabled."""
     base = encode_eval(scgpt_net, batch)
     pm = attach_lora(scgpt_net)
     for n, p in pm.named_parameters():

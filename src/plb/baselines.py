@@ -1,11 +1,12 @@
-"""Non-learned baselines. Each returns predicted mean profiles for the test perturbations.
+"""Baselines that involve no learning. Each returns a predicted mean profile per test perturbation.
 
-1. no_change      : predict the control mean. Scores well on raw MSE/correlation
-                    because most genes don't move; that's why it's included.
-2. train_mean     : control mean + average delta over all training perturbations.
-   additive       : for a combo A+B, control + delta(A) + delta(B), using the
-                    single-perturbation deltas seen in training (Norman only).
-3. (scGPT zero-shot / frozen-embedding + linear head lives in model.py.)
+no_change:  the control mean. Because most genes don't move, this already
+            scores well on raw expression, which is why it is in the table.
+train_mean: the control mean plus the average effect of all training perturbations.
+additive:   for a Norman pair A+B, the control mean plus the effect of A alone
+            plus the effect of B alone, both taken from training.
+
+The scGPT baseline without fine-tuning lives in model.py.
 """
 
 from __future__ import annotations

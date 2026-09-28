@@ -1,23 +1,19 @@
 # Conda environment for perturb-lora-bench.
 #
-# Conda provides only Python; every other package is installed by pip from
-# requirements.lock, which pins the exact version of all ~200 transitive
-# dependencies. Why not conda packages? helical itself is pip-only and pins
-# torch==2.7.0, and mixing conda- and pip-installed torch stacks is the most
-# common way scGPT environments break.
+# Conda installs Python only. Everything else comes from requirements.lock via
+# pip, because helical is pip-only and pins torch==2.7.0, and mixing conda and
+# pip builds of torch tends to break scGPT installs.
 #
-# Target: Linux x86_64 (the cluster). torch 2.7.0 from PyPI bundles the CUDA
-# 12.6 runtime, so no `module load cuda` is needed. It needs an NVIDIA driver
-# >= 525 on the GPU node; check with `nvidia-smi`. The same environment also
-# runs on CPU-only nodes (data prep, baselines, tests).
+# Built for Linux x86_64. The PyPI torch wheel includes CUDA 12.6, so no
+# `module load cuda` is needed; the GPU node needs an NVIDIA driver >= 525.
+# CPU-only nodes work too, for data prep, baselines and tests.
+# The lockfile will not install on macOS.
 #
-# macOS is NOT supported by the lockfile (it contains Linux-only nvidia-* wheels).
-#
-# Create (on the cluster, in scratch to avoid home-quota problems):
+# Create it in scratch, not $HOME:
 #   conda env create -f environment.yml -p /icbb_triton/scratch/$USER/envs/plb
 #   conda activate /icbb_triton/scratch/$USER/envs/plb
 #
-# To change dependencies: edit requirements.in, then run `make lock`.
+# To change dependencies, edit requirements.in and run `make lock`.
 
 name: plb
 channels:

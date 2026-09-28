@@ -1,29 +1,22 @@
-"""scGPT (loaded via helical) + LoRA adapters + a perturbation head.
+"""scGPT loaded through helical, with LoRA adapters and a perturbation head.
 
-LoRA in one paragraph
----------------------
-A frozen weight matrix W (d_out x d_in) is left untouched. Next to it we train
-two small matrices, A (r x d_in) and B (d_out x r), and the layer computes
+LoRA (Hu et al., ICLR 2022) keeps a pretrained weight matrix W frozen and
+learns a low-rank update next to it: the layer computes
 
     y = W x + (alpha / r) * B A x
 
-B is initialised to zero, so at step 0 the model is exactly the pretrained
-model. Only A and B get gradients: for r=8 on a 512->1536 projection that is
-8*512 + 1536*8 = 16,384 parameters instead of 786,432.
+where A is r x d_in and B is d_out x r. B starts at zero, so before training
+the model is exactly the pretrained one. For r = 8 on a 512 -> 1536 projection
+that is 16,384 trainable numbers instead of 786,432.
 
-scGPT-specific wrinkle
-----------------------
-scGPT uses torch.nn.MultiheadAttention, which stores Q, K and V stacked in a
-single `in_proj_weight` (3*d_model x d_model). There are no separate q_proj /
-v_proj modules to target. PEFT supports MultiheadAttention as a unit: targeting
-"self_attn" adapts the stacked QKV projection *and* out_proj.
+scGPT (Cui et al., Nature Methods 2024) uses torch.nn.MultiheadAttention, which
+keeps the query, key and value weights in one stacked `in_proj_weight`. There
+are no separate q_proj / v_proj layers, so we target "self_attn" and PEFT
+adapts the stacked projection plus out_proj.
 
-PyTorch fast-path trap (tested in tests/test_lora.py)
-------------------------------------------------------
-In eval mode under torch.no_grad(), nn.TransformerEncoderLayer takes a fused
-C++ "fast path" that reads `self_attn.in_proj_weight` directly and never calls
-the (LoRA-wrapped) module's forward. The adapter is silently skipped and you
-evaluate the base model. `attach_lora` disables the fast path globally.
+In eval mode under torch.no_grad(), TransformerEncoderLayer takes a fused fast
+path that reads in_proj_weight directly and skips the LoRA wrapper. attach_lora
+turns that path off; tests/test_lora.py checks it.
 """
 
 from __future__ import annotations
@@ -33,7 +26,7 @@ from torch import nn
 
 
 def disable_mha_fastpath() -> None:
-    """Force MultiheadAttention/TransformerEncoderLayer to use the Python path, so LoRA is applied at eval."""
+    """Make attention run through the normal Python path so LoRA is used at eval time."""
     torch.backends.mha.set_fastpath_enabled(False)
 
 
@@ -44,10 +37,7 @@ def attach_lora(
     dropout: float = 0.05,
     target_modules: list[str] | None = None,
 ):
-    """Wrap `model` with PEFT LoRA adapters and freeze everything else.
-
-    Returns a peft.PeftModel. Call `.print_trainable_parameters()` on it to see the budget.
-    """
+    """Add PEFT LoRA adapters to `model` and freeze all other weights. Returns a PeftModel."""
     from peft import LoraConfig, get_peft_model
 
     disable_mha_fastpath()
@@ -62,11 +52,11 @@ def attach_lora(
 
 
 def load_scgpt(device: str = "cpu"):
-    """Load pretrained scGPT (whole-human checkpoint) and its gene vocabulary through helical.
+    """Load the whole-human scGPT checkpoint and its gene vocabulary via helical.
 
-    Downloads ~200 MB to $CACHE_DIR_HELICAL_PREFIX/.cache/helical on first call
-    (defaults to ~/.cache; on the cluster, point the prefix at scratch).
-    Returns (network, vocab) where vocab maps gene symbol -> token id.
+    The first call downloads the weights to $CACHE_DIR_HELICAL_PREFIX/.cache/helical
+    (~/.cache if unset; slurm/_env.sh points it at scratch).
+    Returns (network, vocab), where vocab maps gene symbol to token id.
     """
     from helical.models.scgpt import scGPT, scGPTConfig
 
@@ -75,17 +65,14 @@ def load_scgpt(device: str = "cpu"):
 
 
 class PerturbationScGPT(nn.Module):
-    """scGPT encoder + perturbation-flag embedding + per-gene expression decoder.
+    """Predict post-perturbation expression from a control cell. Not implemented yet.
 
-    Design (follows the original scGPT perturbation setup, not yet implemented):
-      * input tokens: genes of one control cell, values = control expression
-      * each gene token also gets a learned flag embedding: 0 = not perturbed,
-        1 = perturbed (the CRISPRa target), added to the gene embedding
-      * encoder: pretrained scGPT transformer (frozen, + LoRA)
-      * head: per-gene MLP predicting post-perturbation expression
-
-    Trainable: LoRA adapters, the flag embedding, and the decoder head.
-    TODO(week 2): implement after data loading and baselines are done.
+    Planned design, following the scGPT paper's perturbation setup: the input is
+    one control cell's genes and expression values. Each gene token gets an
+    extra learned embedding saying whether it is the perturbed gene. The frozen
+    scGPT encoder (with LoRA) processes the tokens, and a small MLP predicts
+    each gene's expression after the perturbation. Trained: LoRA adapters, the
+    perturbation embedding, and the MLP.
     """
 
     def __init__(self, backbone: nn.Module, d_model: int = 512):

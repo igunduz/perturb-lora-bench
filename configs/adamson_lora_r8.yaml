@@ -1,33 +1,33 @@
-# Smoke-test run: Adamson (single perturbations, K562 CRISPRi), LoRA r=8.
-# Every value here is logged to W&B; change a run by copying this file, not by CLI flags.
+# Adamson (K562, CRISPRi, single genes) with LoRA r=8. Used to debug the pipeline.
+# The whole file is logged to W&B. For a new run, copy the file rather than using CLI flags.
 seed: 42
 
 data:
   name: adamson
-  split: simulation      # GEARS: test perturbations unseen in training
+  split: simulation      # test perturbations never seen in training
   split_seed: 1
-  n_hvg: 5000            # GEARS preprocessing default
+  n_hvg: 5000            # as preprocessed by GEARS
 
 model:
-  backbone: scgpt        # loaded via helical, whole-human checkpoint
-  max_genes: 1536        # genes per cell fed to the encoder
+  backbone: scgpt        # whole-human checkpoint, loaded via helical
+  max_genes: 1536        # genes per cell passed to the encoder
 
 lora:
   r: 8
-  alpha: 16              # effective scale alpha/r = 2
+  alpha: 16              # update is scaled by alpha/r = 2
   dropout: 0.05
-  target_modules: [self_attn]   # stacked QKV + out_proj; see src/plb/model.py
+  target_modules: [self_attn]   # scGPT has no q_proj/v_proj; see README
 
 train:
   epochs: 15
   batch_size: 32
   lr: 1.0e-4
   weight_decay: 0.0
-  early_stopping_on: val_pearson_delta_de20   # chosen on VAL split, never test
+  early_stopping_on: val_pearson_delta_de20   # validation split only
 
 eval:
   top_de: 20
 
 wandb:
   project: perturb-lora-bench
-  mode: online           # set to "offline" on nodes without internet, then `wandb sync`
+  mode: online           # use "offline" on nodes without internet, then run `wandb sync`

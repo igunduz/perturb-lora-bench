@@ -1,4 +1,4 @@
-"""Data loading and split integrity. Skipped until `make data` has been run."""
+"""Data loading and split checks. Skipped until `make data` has been run."""
 
 from pathlib import Path
 
@@ -11,7 +11,7 @@ needs_adamson = pytest.mark.skipif(not (DATA / "adamson").exists(), reason="run 
 
 @needs_adamson
 def test_test_perturbations_unseen_in_train():
-    """The whole evaluation is invalid if a test perturbation leaks into training."""
+    """No test perturbation may appear in training."""
     from plb.data import load_pertdata
 
     pd_ = load_pertdata("adamson")
