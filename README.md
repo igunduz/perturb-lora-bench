@@ -213,9 +213,7 @@ On 16 CPU cores one training step takes about 4 s, so a full Adamson run
 with CUDA 12.6. Seeds and settings live in `configs/`, and training runs are
 logged to Weights & Biases.
 
-## What I'd do next, and what I don't trust
-
-What I don't trust:
+## What I don't trust
 
 - 21 test genes from one split seed. The pretrained-vs-random gap (+0.011)
   would need more genes or more split seeds to resolve either way.
@@ -233,16 +231,6 @@ What I don't trust:
 - Gene matching: exact symbols matched 4,399 of 5,060 genes; HGNC renames
   recovered 520 more (4,919, 97%), including the three test genes HARS, TARS
   and CARS that were otherwise invisible to the model.
-
-What I'd do next:
-
-- Norman et al. 2019, including gene pairs, where the additive baseline is no
-  longer the same as the mean.
-- More split seeds and training seeds, to put a real interval on the
-  pretrained-vs-random difference.
-- Add gene-level prior knowledge (GO or text embeddings, as in scGenePT [8]) to
-  the perturbed gene's token and test, with the same random-weight control,
-  whether that is what gets the transcription factors right.
 
 ## References
 
